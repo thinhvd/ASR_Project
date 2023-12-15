@@ -43,7 +43,7 @@ def get_audio_info(path):
             'duration': duration
         }
     except Exception as e:
-        return jsonify({"error": e})
+        return {"error": e}
 
 def transcribe_audio(files):
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -79,7 +79,7 @@ def transcribe_audio(files):
 @app.route('/audio', methods = ['POST'])
 def extract_audio():
     if 'audio' not in request.files:
-        return jsonify({"error": "No audio file provided"})
+        return {"error": "No audio file provided"}
 
     audio_file = request.files['audio']
 
@@ -99,9 +99,9 @@ def extract_audio():
     }
 
     if audio_info:
-        return jsonify(response_data)
+        return response_data
     else:
-        return jsonify({"error": "Failed to retrieve audio information"})
+        return {"error": "Failed to retrieve audio information"}
 
 if __name__ == '__main__':
     app.run(threaded=True, debug=True)
