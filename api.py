@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 import torch
 
+import glob
 import json
 import os
 import tempfile
@@ -81,25 +82,27 @@ def extract_audio():
     if 'audio' not in request.files:
         return {"error": "No audio file provided"}
 
-    audio_file = request.files['audio']
+    all_audio_file = request.files.getlist('audio')
+    all_audio_info = []
+    for audio_file in all_audio_file:
+        count_ = len(glob.glob('audio_files\\*.wav'))
+        print(audio_file.filename)
+        audio_path = "audio_files\\" + audio_file.filename
 
-    file_path = audio_file.filename
+        audio_file.save(audio_path)
 
-    # future = executor.submit(get_audio_info, file_path)
-    
-    # audio_info = future.result()
-    audio_info = get_audio_info(file_path)
-
-    text = transcribe_audio(file_path)
-
-    response_data = {
-        "duration": audio_info.get("duration", 0),
-        "sample_rate": audio_info.get("sample_rate", 0),
-        "text": " ".join(text)
-    }
+    all_audio_path = glob.glob('audio_files\\*.wav')
+    all_text = transcribe_audio(all_audio_path)
+    print(all_text)
+    for i, audio_path in enumerate(all_audio_path):
+        audio_info = extract_audio(audio_path)
+        if 'error' not in audio_info:
+            audio_info['text'] = all_text[i]
+        print(audio_info)
+        all_audio_info.append(audio_info)
 
     if audio_info:
-        return response_data
+        return jsonify(all_audio_info)
     else:
         return {"error": "Failed to retrieve audio information"}
 
