@@ -39,10 +39,8 @@ def get_audio_info(path):
                 minutes = int(line.split(':')[2].strip())
                 seconds = float((line.split(':')[3].strip()).split(" ")[0])
                 duration = hours * 3600 + minutes * 60 + seconds
-        return {
-            'sample_rate': sample_rate,
-            'duration': duration
-        }
+
+        return duration
     except Exception as e:
         return {"error": e}
 
@@ -54,14 +52,12 @@ def transcribe_audio(files):
                 fp.write(json.dumps(entry) + '\n')
 
         config = {'paths2audio_files': files, 'batch_size': 4, 'temp_dir': tmpdir}
-        all_text = []
+
         temporary_datalayer = setup_transcribe_dataloader(config, quartznet.decoder.vocabulary)
         for test_batch in temporary_datalayer:
-            #print(test_batch[0])
             processed_signal, processed_signal_len = quartznet.preprocessor(
                 input_signal=test_batch[0].to(quartznet.device), length=test_batch[1].to(quartznet.device)
             )
-            #print(1)
             ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(processed_signal),}
             ologits = ort_session.run(None, ort_inputs)
             alogits = np.asarray(ologits)
@@ -69,12 +65,8 @@ def transcribe_audio(files):
             greedy_predictions = logits.argmax(dim=-1, keepdim=False)
             wer = WER(decoding=quartznet.decoding, use_cer=False)
             hypotheses, _ = wer.decoding.ctc_decoder_predictions_tensor(greedy_predictions)
-            if isinstance(hypotheses, list):
-                for text in hypotheses:
-                    all_text.append(text)
-            else:
-                all_text.append(hypotheses)
-        return all_text
+            
+        return hypotheses
 
 
 @app.route('/audio', methods = ['POST'])
@@ -82,27 +74,33 @@ def extract_audio():
     if 'audio' not in request.files:
         return {"error": "No audio file provided"}
 
-    all_audio_file = request.files.getlist('audio')
-    all_audio_info = []
-    for audio_file in all_audio_file:
-        count_ = len(glob.glob('audio_files\\*.wav'))
-        print(audio_file.filename)
-        audio_path = "audio_files\\" + audio_file.filename
+    all_audio_files = request.files.getlist('audio')
+    temp_audio_paths = []
 
-        audio_file.save(audio_path)
+    for audio_file in all_audio_files:
+        temp_audio_path = os.path.join(tempfile.gettempdir(), audio_file.filename)
+        audio_file.save(temp_audio_path)
+        temp_audio_paths.append(temp_audio_path)
 
-    all_audio_path = glob.glob('audio_files\\*.wav')
-    all_text = transcribe_audio(all_audio_path)
-    print(all_text)
-    for i, audio_path in enumerate(all_audio_path):
-        audio_info = extract_audio(audio_path)
-        if 'error' not in audio_info:
-            audio_info['text'] = all_text[i]
-        print(audio_info)
-        all_audio_info.append(audio_info)
+    durations = [get_audio_info(path) for path in temp_audio_paths]
 
-    if audio_info:
-        return jsonify(all_audio_info)
+    transcriptions = transcribe_audio(temp_audio_paths)
+
+    # Prepare result data
+    result_data = []
+    for i in range(len(all_audio_files)):
+        result_entry = {
+            "file_name": all_audio_files[i].filename,
+            "duration": durations[i],
+            "text": transcriptions[i],
+        }
+        result_data.append(result_entry)
+
+    for temp_audio_path in temp_audio_paths:
+        os.remove(temp_audio_path)
+
+    if result_data:
+        return jsonify(result_data)
     else:
         return {"error": "Failed to retrieve audio information"}
 
