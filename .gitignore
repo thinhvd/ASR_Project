@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Models and Checkpoints (Large files)
+*.nemo
+*.onnx
+*.pt
+*.pth
+*.ckpt
+
+# Data & Audio
+data/*
+!data/.gitkeep
+*.wav
+*.mp3
+*.flac
+
+# OS generated files
+.DS_Store
+Thumbs.db
